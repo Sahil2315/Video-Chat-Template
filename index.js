@@ -1,21 +1,29 @@
 const express = require('express')
+const path = require('path')
 const app = express()
 const server = require('http').Server(app)
 const io = require('socket.io')(server)
 const { v4: uuidV4 } = require('uuid')
-let cookieParser = require('cookie-parser')
-let path = require('path')
+const { ExpressPeerServer } = require("peer");
+const peerServer = ExpressPeerServer(server, {
+debug: true,
+});
+app.use("/peerjs", peerServer);
 
-app.use(express.static('public'))
-app.use(cookieParser())
+
+app.use(express.static(__dirname))
 
 app.get('/', (req, res) => {
-    res.redirect(`/${uuidV4()}`)
+    res.sendFile(path.join(__dirname, 'index.html'))
 })
 
-app.get('/:room', (req, res) => {
-    res.cookie( 'roomId', req.params.room )
-    res.sendFile(path.join(__dirname, 'public/index.html'))
+io.on('connection', socket => {
+    socket.on('user-connected', userID => {
+        socket.broadcast.emit('newuser', userID)
+        socket.on('disconnect', () => {
+            socket.broadcast.emit('user-disconnected', userID)
+        })
+    })
 })
 
 server.listen(5000, () => {
